@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.view.SurfaceHolder
 import android.view.SurfaceHolder.Callback
+import android.widget.ImageView
 import com.dming.fastscanqr.utils.DLog
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.ChecksumException
@@ -45,7 +46,7 @@ class CameraActivity : AppCompatActivity() {
                 height: Int
             ) {
                 DLog.i("surfaceChanged")
-                mCameraHelper.onSurfaceChanged(holder, width, height)
+                mCameraHelper.onSurfaceChanged(width, height)
             }
 
             override fun surfaceDestroyed(holder: SurfaceHolder?) {
@@ -54,6 +55,9 @@ class CameraActivity : AppCompatActivity() {
             }
 
         })
+        showQRImg.setOnClickListener {
+            mCameraHelper.readPixels(it as ImageView)
+        }
 //        glSurfaceView.setOnClickListener {
 //            try {
 //                val srcBitmap = BitmapFactory.decodeStream(assets.open("test_qr.png"))

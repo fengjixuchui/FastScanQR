@@ -2,19 +2,26 @@ package com.dming.fastscanqr
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Point
 import android.graphics.SurfaceTexture
 import android.hardware.Camera
+import android.opengl.GLES20
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.WindowManager
+import android.widget.ImageView
 import com.dming.fastscanqr.utils.DLog
 import com.dming.fastscanqr.utils.EglHelper
 import com.dming.fastscanqr.utils.FGLUtils
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.math.abs
+
 
 @Suppress("DEPRECATION")
 class CameraHelper {
@@ -27,34 +34,70 @@ class CameraHelper {
     private lateinit var mSurfaceTexture: SurfaceTexture
     private val mCameraMatrix = FloatArray(16)
     //
-    private val mHandlerThread = HandlerThread("GL")
-    private lateinit var mHandler: Handler
-    private lateinit var mCameraFilter: CameraFilter
+    private lateinit var mGLThread: HandlerThread
+    private lateinit var mGLHandler: Handler
+    private lateinit var mPreviewFilter: PreviewFilter
+    private lateinit var mLuminanceFilter: LuminanceFilter
     private var mTextureId: Int = 0
     private val mEglHelper = EglHelper()
     //
-    private var width: Int = 0
-    private var height: Int = 0
+    private lateinit var mPixelThread: HandlerThread
+    private lateinit var mPixelHandler: Handler
+    private var mIsPixelInitSuccess = false
+    private val mPixelLock = ReentrantLock()
+    //
+    private var mWidth: Int = 0
+    private var mHeight: Int = 0
+    //
+    private var mPixelBuffer: ByteBuffer? = null
+    private var mPixelBitmap: Bitmap? = null
+    private val mPixelEglHelper = EglHelper()
+
+    private var mPixelSurface: Surface? = null
+    private var mPixelSurfaceTexture: SurfaceTexture? = null
+    //
+    private var mFrameIds = IntArray(2)
+    private var mPixelTexture = -1
+    //
+    private lateinit var mPixelFilter: PixelFilter
 
     fun init() {
-        mHandlerThread.start()
-        mHandler = Handler(mHandlerThread.looper)
+        mGLThread = HandlerThread("GL")
+        mPixelThread = HandlerThread("QR")
+        mGLThread.start()
+        mGLHandler = Handler(mGLThread.looper)
+        mPixelThread.start()
+        mPixelHandler = Handler(mPixelThread.looper)
+        mGLHandler.post {
+            chooseCamera()
+        }
     }
 
     fun surfaceCreated(activity: Activity, holder: SurfaceHolder?) {
-        mHandler.post {
+        mGLHandler.post {
             mEglHelper.initEgl(null, holder!!.surface)
-            mEglHelper.glBindThread()
             mTextureId = FGLUtils.createOESTexture()
             mSurfaceTexture = SurfaceTexture(mTextureId)
-            mCameraFilter = CameraFilter(activity)
+            mPreviewFilter = PreviewFilter(activity)
+            mLuminanceFilter = LuminanceFilter(activity)
             mSurfaceTexture.setOnFrameAvailableListener {
                 it.updateTexImage()
                 it.getTransformMatrix(mCameraMatrix)
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mFrameIds[0])
+                mLuminanceFilter.onDraw(mTextureId, mCameraMatrix, 0, 0, mWidth, mHeight)
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+                //
+                mPreviewFilter.onDraw(mTextureId, mCameraMatrix, 0, 0, mWidth, mHeight)
                 mEglHelper.swapBuffers()
-                mCameraFilter.onDraw(mTextureId, mCameraMatrix, 0, 0, width, height)
+                //
+                mPixelHandler.post {
+                    if (mIsPixelInitSuccess) {
+                        mPixelFilter.onDraw(mFrameIds[1], mCameraMatrix, 0, 0, mWidth, mHeight)
+                    }
+                    mPixelEglHelper.swapBuffers()
+                }
             }
-            chooseCamera()
+            val start = System.currentTimeMillis()
             openCamera()
             if (mCamera != null) {
                 try {
@@ -64,29 +107,92 @@ class CameraHelper {
                 setCameraDisplayOrientation(activity, mCamera!!, mCameraInfo)
                 adjustCameraParameters(activity)
             }
+            DLog.d("openCamera cost time: ${System.currentTimeMillis() - start}")
+            mPixelHandler.post {
+                mPixelTexture = FGLUtils.createOESTexture()
+                mPixelSurfaceTexture = SurfaceTexture(mPixelTexture)
+                mPixelSurface = Surface(mPixelSurfaceTexture)
+                mPixelEglHelper.initEgl(mEglHelper.eglContext, mPixelSurface)
+                mPixelFilter = PixelFilter(activity)
+                GLES20.glClearColor(1.0f, 0.0f, 0.0f, 1.0f)
+                mPixelSurfaceTexture?.setOnFrameAvailableListener {
+                    it.updateTexImage()
+                }
+            }
         }
     }
 
-    fun onSurfaceChanged(holder: SurfaceHolder?, width: Int, height: Int) {
-        this@CameraHelper.width = width
-        this@CameraHelper.height = height
-        mHandler.post {
-            mCameraFilter.onChange(width, height)
+    fun onSurfaceChanged(width: Int, height: Int) {
+        mWidth = width
+        mHeight = height
+        mGLHandler.post {
+            mSurfaceTexture.setDefaultBufferSize(width, height)
+            GLES20.glViewport(0, 0, mWidth, mHeight)
+            GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            mFrameIds = FGLUtils.createFBO(width, height)
+            //
+            mPixelHandler.post {
+                mPixelBuffer = ByteBuffer.allocate(width * height * 4)
+                mPixelBitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888)
+                mPixelSurfaceTexture?.setDefaultBufferSize(width, height)
+                GLES20.glViewport(0, 0, mWidth, mHeight)
+                GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                mIsPixelInitSuccess = true
+            }
         }
+
     }
 
     fun surfaceDestroyed() {
-        mHandler.post {
+        mIsPixelInitSuccess = false
+        mPixelSurfaceTexture?.setOnFrameAvailableListener(null)
+        mSurfaceTexture.setOnFrameAvailableListener(null)
+        mPixelHandler.post {
+            FGLUtils.deleteTexture(mPixelTexture)
+            mPixelFilter.onDestroy()
+            mPixelEglHelper.destroyEgl()
+            mPixelSurfaceTexture?.release()
+            mPixelSurface?.release()
+        }
+        mGLHandler.post {
+            FGLUtils.deleteFBO(mFrameIds)
             FGLUtils.deleteTexture(mTextureId)
             releaseCamera()
-            mCameraFilter.onDestroy()
+            mPreviewFilter.onDestroy()
+            mLuminanceFilter.onDestroy()
             mEglHelper.destroyEgl()
             mSurfaceTexture.release()
         }
     }
 
     fun destroy() {
-        mHandlerThread.quit()
+        mGLThread.quit()
+        mPixelThread.quit()
+    }
+
+    fun readPixels(imageView: ImageView) {
+        mPixelHandler.post {
+            val start = System.currentTimeMillis()
+            mPixelBuffer!!.position(0)
+            GLES20.glReadPixels(
+                0,
+                0,
+                mWidth,
+                mHeight,
+                GLES20.GL_RGBA,
+                GLES20.GL_UNSIGNED_BYTE,
+                mPixelBuffer
+            )
+            DLog.d("mPixelHandler cost time: ${System.currentTimeMillis() - start}")
+            mPixelBuffer?.rewind()
+            mPixelBitmap!!.copyPixelsFromBuffer(mPixelBuffer)
+            DLog.d("bitmap cost time: ${System.currentTimeMillis() - start}")
+            (imageView.context as Activity).runOnUiThread {
+                imageView.setImageBitmap(mPixelBitmap)
+            }
+        }
     }
 
     private fun chooseCamera() {
@@ -104,9 +210,6 @@ class CameraHelper {
     }
 
     private fun openCamera() {
-        if (mCamera != null) {
-            releaseCamera()
-        }
         mCamera = Camera.open(mCameraId)
         mCameraParameters = mCamera!!.parameters
         mPreviewSizes.clear()
@@ -114,7 +217,6 @@ class CameraHelper {
             //            DLog.i("size->" + size.width + " " + size.height);
             mPreviewSizes.add(CameraSize(size.width, size.height))
         }
-
     }
 
     private fun adjustCameraParameters(context: Context) {
@@ -156,20 +258,20 @@ class CameraHelper {
     }
 
     private fun setAutoFocusInternal(autoFocus: Boolean): Boolean {
-        if (mCamera != null) {
-            val modes = mCameraParameters.getSupportedFocusModes()
+        return if (mCamera != null) {
+            val modes = mCameraParameters.supportedFocusModes
             if (autoFocus && modes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
-                mCameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)
+                mCameraParameters.focusMode = Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE
             } else if (modes.contains(Camera.Parameters.FOCUS_MODE_FIXED)) {
-                mCameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED)
+                mCameraParameters.focusMode = Camera.Parameters.FOCUS_MODE_FIXED
             } else if (modes.contains(Camera.Parameters.FOCUS_MODE_INFINITY)) {
-                mCameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_INFINITY)
+                mCameraParameters.focusMode = Camera.Parameters.FOCUS_MODE_INFINITY
             } else {
-                mCameraParameters.setFocusMode(modes.get(0))
+                mCameraParameters.focusMode = modes[0]
             }
-            return true
+            true
         } else {
-            return false
+            false
         }
     }
 
@@ -210,8 +312,8 @@ class CameraHelper {
         } else {
             var diffMinValue = Integer.MAX_VALUE
             for (size in lessThanView) {
-                val diffWidth = Math.abs(viewWidth - size.width)
-                val diffHeight = Math.abs(viewHeight - size.height)
+                val diffWidth = abs(viewWidth - size.width)
+                val diffHeight = abs(viewHeight - size.height)
                 val diffValue = diffWidth + diffHeight
                 if (diffValue < diffMinValue) {  // 找出差值最小的数
                     diffMinValue = diffValue
