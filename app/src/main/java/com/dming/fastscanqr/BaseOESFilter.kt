@@ -38,11 +38,10 @@ open class BaseOESFilter(mContext: Context, frgId: Int) : IShader {
         mImageOESTexture = GLES20.glGetUniformLocation(mProgram, "inputImageOESTexture")
         uMvpMatrix = GLES20.glGetUniformLocation(mProgram, "inputMatrix")
         uTexMatrix = GLES20.glGetUniformLocation(mProgram, "uTexMatrix")
-        Matrix.setIdentityM(mMvpMatrix, 0)
     }
 
     override fun onChange(imgWidth: Int, imgHeight: Int, width: Int, height: Int) {
-        DLog.i("onChange000 imgWidth: $imgWidth  - imgHeight: $imgHeight >>> width: $width  - height: $height")
+        DLog.i("BaseOESFilter 000 imgWidth: $imgWidth  - imgHeight: $imgHeight >>> width: $width  - height: $height")
         var imgHRatio = 1f
         var imgWRatio = 1f
         if (imgWidth > imgHeight) {
@@ -52,8 +51,8 @@ open class BaseOESFilter(mContext: Context, frgId: Int) : IShader {
         }
         texH = imgHRatio
         texW = imgWRatio
-        DLog.i("222 texH: $texH  - texW: $texW ")
-        var ratio = 0f
+        DLog.i("BaseOESFilter 111 texH: $texH  - texW: $texW ")
+        var ratio:Float
         if (width > height) {
             ratio = 1f * height / width
             texW = imgWRatio * ratio
@@ -63,26 +62,18 @@ open class BaseOESFilter(mContext: Context, frgId: Int) : IShader {
             texH = imgHRatio * ratio
             texW = imgWRatio
         }
-        DLog.i("222 texH: $texH  - texW: $texW ratio:$ratio")
-//        if (texW > texH) {
-//            ratio = 1f / texH
-//            texH = 1f
-//            texW *= ratio
-//        } else {
-//            ratio = 1f / texW
-//            texW = 1f
-//            texH *= ratio
-//        }
-//        DLog.i("333 texH: $texH  - texW: $texW")
+        DLog.i("BaseOESFilter 222 texH: $texH  - texW: $texW ratio:$ratio")
+        if (texW > texH) {
+            ratio = 1f / texH
+            texH = 1f
+            texW *= ratio
+        } else {
+            ratio = 1f / texW
+            texW = 1f
+            texH *= ratio
+        }
+        DLog.i("BaseOESFilter 333 texH: $texH  - texW: $texW")
         //
-//        mPosFB = ShaderHelper.arrayToFloatBuffer(
-//            floatArrayOf(
-//                -texW, texH, 0f,
-//                -texW, -texH, 0f,
-//                texW, -texH, 0f,
-//                texW, texH, 0f
-//            )
-//        )
         Matrix.setIdentityM(mMvpMatrix, 0)
         Matrix.scaleM(mMvpMatrix, 0, texW, texH, 1f)
     }

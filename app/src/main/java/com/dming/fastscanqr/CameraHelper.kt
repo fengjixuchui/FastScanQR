@@ -2,16 +2,13 @@ package com.dming.fastscanqr
 
 import android.app.Activity
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.SurfaceTexture
 import android.opengl.GLES20
-import android.opengl.GLUtils
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
 import android.view.SurfaceHolder
-import com.dming.fastscanqr.utils.DLog
+import android.widget.ImageView
 import com.dming.fastscanqr.utils.EglHelper
 import com.dming.fastscanqr.utils.FGLUtils
 import java.nio.ByteBuffer
@@ -39,21 +36,21 @@ class CameraHelper {
     private var mHeight: Int = 0
     //
     private var mPixelBuffer: ByteBuffer? = null
-    private var mPixelBitmap: Bitmap? = null
+//    private var mPixelBitmap: Bitmap? = null
     private val mPixelEglHelper = EglHelper()
 
     private var mPixelSurface: Surface? = null
     private var mPixelSurfaceTexture: SurfaceTexture? = null
     //
-    private var mFrameIds = IntArray(2)
+    private var mFrameIds: IntArray? = null
     private var mPixelTexture = -1
     //
     private lateinit var mPixelFilter: IShader
     //
     private var readQRCode: ((width: Int, height: Int, grayByteBuffer: ByteBuffer) -> Unit)? = null
     //
-    private var mTestTexture = -1
-    private var mContext:Context? = null
+//    private var mTestTexture = -1
+    private var mContext: Context? = null
 
     fun init(context: Context) {
         mContext = context
@@ -77,19 +74,21 @@ class CameraHelper {
             mCamera.open(mTextureId)
             mCamera.getSurfaceTexture()?.setOnFrameAvailableListener {
                 GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mFrameIds[0])
-                mLuminanceFilter.onDraw(mTextureId, 0, 0, mWidth, mHeight, mCameraMatrix)
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+                if (mFrameIds != null) {
+                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mFrameIds!![0])
+                    mLuminanceFilter.onDraw(mTextureId, 0, 0, mWidth, mHeight, mCameraMatrix)
+                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+                }
                 //
-                mPreviewFilter.onDraw(mTextureId, 0, 0, mWidth, mHeight,mCameraMatrix)
+                mPreviewFilter.onDraw(mTextureId, 0, 0, mWidth, mHeight, mCameraMatrix)
                 mEglHelper.swapBuffers()
                 it.updateTexImage()
                 it.getTransformMatrix(mCameraMatrix)
                 //
                 mPixelLock.tryLock()
                 mPixelHandler.post {
-                    if (mIsPixelInitSuccess) {
-//                        mPixelFilter.onDraw(mFrameIds[1], 0, 0, mWidth, mHeight, null)
+                    if (mIsPixelInitSuccess && mFrameIds != null) {
+                        mPixelFilter.onDraw(mFrameIds!![1], 0, 0, mWidth, mHeight, null)
                     }
                     mPixelEglHelper.swapBuffers()
                     //
@@ -138,30 +137,25 @@ class CameraHelper {
         mWidth = width
         mHeight = height
         mGLHandler.post {
-            GLES20.glViewport(0, 0, mWidth, mHeight)
+            GLES20.glViewport(0, 0, width, height)
             GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            if (mFrameIds != null) {
+                FGLUtils.deleteFBO(mFrameIds)
+            }
             mFrameIds = FGLUtils.createFBO(width, height)
             //
             mCamera.surfaceChange(width, height)
             val cameraSize = mCamera.getCameraSize()!!
 
-//            mTestTexture = FGLUtils.createTexture()
-//            val srcBitmap = BitmapFactory.decodeStream(mContext!!.assets.open("test_qr.png"))
-//            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mTestTexture)
-//            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D,0,srcBitmap,0)
-//            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0)
-//            srcBitmap.recycle()
-//            FGLUtils.glCheckErr("texImage2D>>>>")
-//            val cameraSize = CameraSize(srcBitmap.width,srcBitmap.height)
-
             mPreviewFilter.onChange(cameraSize.width, cameraSize.height, width, height)
+            mLuminanceFilter.onChange(cameraSize.width, cameraSize.height, width, height)
             mPixelFilter.onChange(cameraSize.width, cameraSize.height, width, height)
             //
             mPixelHandler.post {
-                mPixelBuffer = ByteBuffer.allocate(width * height * 4)
-                mPixelBitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888)
-                mPixelSurfaceTexture?.setDefaultBufferSize(width, height)
+                mPixelBuffer = ByteBuffer.allocate(mWidth * mHeight * 4)
+//                mPixelBitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888)
+                mPixelSurfaceTexture?.setDefaultBufferSize(mWidth, mHeight)
                 GLES20.glViewport(0, 0, mWidth, mHeight)
                 GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
                 GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
@@ -182,7 +176,10 @@ class CameraHelper {
             mPixelSurface?.release()
         }
         mGLHandler.post {
-            FGLUtils.deleteFBO(mFrameIds)
+            if (mFrameIds != null) {
+                FGLUtils.deleteFBO(mFrameIds)
+                mFrameIds = null
+            }
             FGLUtils.deleteTexture(mTextureId)
             mCamera.close()
             mPreviewFilter.onDestroy()
@@ -201,28 +198,28 @@ class CameraHelper {
         this.readQRCode = readQRCode
     }
 
-//    fun readPixels(imageView: ImageView) {
+    fun readPixels(imageView: ImageView) {
 //        mPixelHandler.post {
-//            //            val start = System.currentTimeMillis()
-////            mPixelBuffer!!.position(0)
-////            GLES20.glReadPixels(
-////                0,
-////                0,
-////                mWidth,
-////                mHeight,
-////                GLES20.GL_RGBA,
-////                GLES20.GL_UNSIGNED_BYTE,
-////                mPixelBuffer
-////            )
-////            DLog.d("mPixelHandler cost time: ${System.currentTimeMillis() - start}")
-////            mPixelBuffer?.rewind()
-////            mPixelBitmap!!.copyPixelsFromBuffer(mPixelBuffer)
-////            DLog.d("bitmap cost time: ${System.currentTimeMillis() - start}")
+//            val start = System.currentTimeMillis()
+//            mPixelBuffer!!.position(0)
+//            GLES20.glReadPixels(
+//                0,
+//                0,
+//                mWidth,
+//                mHeight,
+//                GLES20.GL_RGBA,
+//                GLES20.GL_UNSIGNED_BYTE,
+//                mPixelBuffer
+//            )
+//            DLog.d("mPixelHandler cost time: ${System.currentTimeMillis() - start}")
+//            mPixelBuffer?.rewind()
+//            mPixelBitmap!!.copyPixelsFromBuffer(mPixelBuffer)
+//            DLog.d("bitmap cost time: ${System.currentTimeMillis() - start}")
 //            (imageView.context as Activity).runOnUiThread {
 //                imageView.setImageBitmap(mPixelBitmap)
 //            }
 //        }
-//    }
+    }
 
 
 }
