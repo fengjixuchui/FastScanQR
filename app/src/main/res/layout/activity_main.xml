@@ -4,25 +4,29 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".CameraActivity">
+    tools:context="com.dming.demo.CameraActivity">
 
 
-    <com.dming.fastscanqr.GLQRView
+    <com.dming.smallScan.GLScanView
         android:id="@+id/glQRView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:scanBackground="@color/scanBackground"
         app:scanCrop="@drawable/scan_crop_bg"
         app:scanLine="@drawable/scan_progress"
-        app:scanPercentSize="0.65"
-        app:scanTopOffset="100dp"/>
+        app:addOneDCode="true"
+        app:scanPercentWidth="0.65"
+        app:scanPercentHeight="0.8"
+        app:useMinSize="true"
+        app:scanPercentTopOffset="0.2"/>
 
     <ImageView
         android:id="@+id/btn_back"
         android:layout_width="50dp"
         android:layout_height="50dp"
         android:scaleType="centerInside"
-        android:src="@drawable/ic_back_white" />
+        android:src="@drawable/ic_back_white"
+        android:background="?android:attr/selectableItemBackground"/>
 
     <View
         android:id="@+id/v_test"
@@ -34,9 +38,8 @@
         android:id="@+id/btn_flash"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:layout_gravity="bottom|center"
-        android:layout_marginBottom="50dp"
-        android:src="@drawable/flashlight_off" />
+        android:visibility="invisible"
+        android:src="@drawable/flashlight_off"/>
 
     <!--        // test-->
 <!--    <ImageView-->
