@@ -2,7 +2,7 @@ package com.dming.smallScan
 
 import android.graphics.Rect
 
-class ScanLayout {
+class ScanLayoutLocation {
 
     companion object {
         fun getViewConfigure(
@@ -11,7 +11,7 @@ class ScanLayout {
             hs: Float,
             maxWidth: Int,
             maxHeight: Int,
-            useMinSize: Boolean
+            scanMustSquare: Boolean
         ): Rect {
             val left: Int
             val top: Int
@@ -30,7 +30,7 @@ class ScanLayout {
             val tt = if (t <= 1) maxHeight * t else t
             width = if (ww > maxWidth) maxWidth else ww
             height = if (hh > maxHeight) maxHeight else hh
-            if (useMinSize) { // 用最小的边
+            if (scanMustSquare) { // 用最小的边
                 if (width > height) {
                     width = height
                 } else {
