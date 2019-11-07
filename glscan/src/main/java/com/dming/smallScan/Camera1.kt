@@ -8,6 +8,9 @@ import android.view.WindowManager
 import com.dming.smallScan.utils.DLog
 
 
+/**
+ * 使用弃用的camera1作为摄像头的控制
+ */
 @Suppress("DEPRECATION")
 class Camera1 : BaseCamera(), ICamera {
     private var mCameraId: Int = 0
@@ -34,9 +37,9 @@ class Camera1 : BaseCamera(), ICamera {
     }
 
     override fun open(textureId: Int) {
-        DLog.i("mCameraId: $mCameraId")
+//        DLog.i("mCameraId: $mCameraId")
         mSurfaceTexture = SurfaceTexture(textureId)
-        val start = System.currentTimeMillis()
+//        val start = System.currentTimeMillis()
         mCamera = Camera.open(mCameraId)
         mCameraParameters = mCamera!!.parameters
         mFlashModes = mCameraParameters.supportedFlashModes
@@ -47,7 +50,7 @@ class Camera1 : BaseCamera(), ICamera {
         mCamera?.let {
             it.setPreviewTexture(mSurfaceTexture)
         }
-        DLog.d("openCamera cost time: ${System.currentTimeMillis() - start}")
+//        DLog.d("openCamera cost time: ${System.currentTimeMillis() - start}")
     }
 
     override fun surfaceChange(width: Int, height: Int) {
@@ -114,7 +117,7 @@ class Camera1 : BaseCamera(), ICamera {
             // back-facing
             result = (info.orientation - degree + 360) % 360
         }
-        DLog.i("result: $result")
+//        DLog.i("result: $result")
         return result
     }
 
@@ -145,7 +148,6 @@ class Camera1 : BaseCamera(), ICamera {
                 return true
             }
         }
-        DLog.i("setFlashLight>>>>false")
         return false
     }
 
