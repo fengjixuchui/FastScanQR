@@ -1,7 +1,9 @@
-package com.dming.smallScan
+package com.dming.glScan.zxing
 
 import android.os.Handler
 import android.os.Looper
+import com.dming.glScan.ScannerLayout
+import com.dming.glScan.SmartScanParameter
 import java.nio.ByteBuffer
 
 /**
@@ -17,15 +19,16 @@ class PixelHandler(looper: Looper) : Handler(looper) {
     var height: Int = 0
 
     fun setConfigure(
-        t: Float,
-        ws: Float,
-        hs: Float,
+        smartScanParameter: SmartScanParameter,
         maxWidth: Int,
-        maxHeight: Int,
-        scanMustSquare: Boolean
+        maxHeight: Int
     ) {
         val viewConfigure =
-            ScanLayoutLocation.getViewConfigure(t, ws, hs, maxWidth, maxHeight, scanMustSquare)
+            ScannerLayout.getViewConfigure(
+                smartScanParameter,
+                maxWidth,
+                maxHeight
+            )
         this.left = viewConfigure.left
         this.top = viewConfigure.top
         this.width = viewConfigure.width()

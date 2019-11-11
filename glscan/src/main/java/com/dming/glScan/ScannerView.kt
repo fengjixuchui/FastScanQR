@@ -1,4 +1,4 @@
-package com.dming.smallScan
+package com.dming.glScan
 
 import android.animation.ValueAnimator
 import android.content.Context
@@ -13,16 +13,15 @@ import android.view.View
  */
 class ScannerView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
     View(context, attrs) {
-    private lateinit var mBgPaint: Paint
-    private lateinit var mCornerPaint: Paint
-    private lateinit var mLineFramePaint: Paint
-    private lateinit var mScanLinePaint: Paint
+    private val mBgPaint = Paint()
+    private val mCornerPaint = Paint()
+    private val mLineFramePaint = Paint()
+    private val mScanLinePaint = Paint()
 
     private var mCornerSize: Int = 0
     private var mCornerThick: Int = 0
     private var mFrameLineWidth: Int = 0
     private var mScanLineSize: Int = 0
-    private var mScanColor: Int = 0
 
     private var mScannerRect: Rect? = null
     private var mScannerLineRect: RectF? = null
@@ -35,48 +34,40 @@ class ScannerView @JvmOverloads constructor(context: Context, attrs: AttributeSe
     private var mScanLineDrawable: Drawable? = null
     private var mScanCornerDrawable: Drawable? = null
 
-    /**
-     * 一些初始化操作
-     */
-    fun initWithAttribute(gLViewParameter: GLViewParameter) {
-        mScanLineDrawable = gLViewParameter.scanLine
-        mScanCornerDrawable = gLViewParameter.scanCorner
-        if (mScanCornerDrawable == null) { // 有扫描框图片用图片
-            //角长度
-            mCornerSize = gLViewParameter.scanCornerSize.toInt()
-            //角宽
-            mCornerThick = gLViewParameter.scanCornerThick.toInt()
-        }
-        // 扫描线尺寸
-        mScanLineSize = gLViewParameter.scanLineWidth.toInt()
-        // 扫描角和扫描框颜色
-        mScanColor = gLViewParameter.scanColor
-        // 框线宽
-        mFrameLineWidth = gLViewParameter.scanFrameLineWidth.toInt()
-        // 背景色和框线
-        val scanBackgroundColor = gLViewParameter.scanBackgroundColor
-        val scanFrameLineColor = gLViewParameter.scanFrameLineColor
-
-        mBgPaint = Paint()
-        mCornerPaint = Paint()
-        mLineFramePaint = Paint()
-        mScanLinePaint = Paint()
-
-        mBgPaint.color = scanBackgroundColor
+    init {
         mBgPaint.isAntiAlias = true
-
-        val cornerColor = mScanColor and 0x00FFFFFF or 0xFF000000.toInt()
         mCornerPaint.isAntiAlias = true
-        mCornerPaint.color = cornerColor
-
         mLineFramePaint.isAntiAlias = true
-        mLineFramePaint.color = scanFrameLineColor
-
         mScanLinePaint.isAntiAlias = true
-
     }
 
-    fun changeScanConfigure(scannerRect: Rect) {
+    /**
+     * 改变参数调用
+     */
+    fun changeScanConfigure(smartScanParameter: SmartScanParameter, scannerRect: Rect) {
+        mScanLineDrawable = smartScanParameter.scanLine
+        mScanCornerDrawable = smartScanParameter.scanCorner
+        if (mScanCornerDrawable == null) { // 有扫描框图片用图片
+            //角长度
+            mCornerSize = smartScanParameter.scanCornerSize.toInt()
+            //角宽
+            mCornerThick = smartScanParameter.scanCornerThick.toInt()
+        }
+        // 扫描线尺寸
+        mScanLineSize = smartScanParameter.scanLineWidth.toInt()
+        // 框线宽
+        mFrameLineWidth = (smartScanParameter.scanFrameLineWidth ?: 0f).toInt()
+        // 背景色和框线
+        mBgPaint.color = smartScanParameter.scanBackgroundColor ?: 0
+        mLineFramePaint.color = smartScanParameter.scanFrameLineColor ?: 0
+
+        // 扫描框颜色
+        val cornerColor = if (smartScanParameter.scanCornerColor != 0)
+            smartScanParameter.scanCornerColor!! and 0x00FFFFFF or 0xFF000000.toInt()
+        else
+            0
+        mCornerPaint.color = cornerColor
+
         mScannerRect = scannerRect
         mScannerRect?.let { rect ->
             val ovalRect = RectF(
@@ -85,8 +76,14 @@ class ScannerView @JvmOverloads constructor(context: Context, attrs: AttributeSe
                 scannerRect.width().toFloat(),
                 mScanLineSize.toFloat()
             )
-            val statColor = mScanColor and 0x00FFFFFF or 0xAA000000.toInt()
-            val endColor = mScanColor and 0x00FFFFFF or 0x10000000
+            val statColor = if (smartScanParameter.scanLineColor != 0)
+                smartScanParameter.scanLineColor!! and 0x00FFFFFF or 0xAA000000.toInt()
+            else
+                0
+            val endColor = if (smartScanParameter.scanLineColor != 0)
+                smartScanParameter.scanLineColor!! and 0x00FFFFFF or 0x10000000
+            else
+                0
             val linearGradient = LinearGradient(
                 ovalRect.left,
                 ovalRect.bottom,
@@ -121,11 +118,6 @@ class ScannerView @JvmOverloads constructor(context: Context, attrs: AttributeSe
         }
     }
 
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        mAnimator?.cancel()
-    }
-
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         drawBg(canvas) // 背景
@@ -143,6 +135,9 @@ class ScannerView @JvmOverloads constructor(context: Context, attrs: AttributeSe
         }
     }
 
+    /**
+     * 绘制背景
+     */
     private fun drawBg(canvas: Canvas) {
         mScannerRect?.let {
             canvas.drawRect(
@@ -248,7 +243,7 @@ class ScannerView @JvmOverloads constructor(context: Context, attrs: AttributeSe
     }
 
     /**
-     * 绘制矩形框的四个角
+     * 绘制矩形框的四个角 Drawable
      */
     private fun drawCornerDrawable(canvas: Canvas) {
         mScanCornerDrawable?.let { scanCornerDrawable ->
@@ -340,6 +335,14 @@ class ScannerView @JvmOverloads constructor(context: Context, attrs: AttributeSe
                 }
             }
         }
+    }
+
+    /**
+     * view被移除的资源释放
+     */
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        mAnimator?.cancel()
     }
 
 }

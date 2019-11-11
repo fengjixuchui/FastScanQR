@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.dming.demo.FullScreenActivity">
+
+    <com.dming.glScan.SmartScanView
+        android:id="@+id/glScanView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:scanMustSquare="false"
+        app:scanPercentTopOffset="0.2"
+        app:scanPercentWidth="0.72"
+        app:scanPercentHeight="0.55"
+        app:scanBackgroundColor="@color/smartScanBackgroundColor"
+        app:enableFlashlightBtn="true"
+        app:addOneDCode="true"
+        />
+
+    <ImageView
+        android:id="@+id/btn_back"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_back_white"
+        android:background="?android:attr/selectableItemBackground"/>
+
+    <View
+        android:id="@+id/v_test"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#33ff0000"/>
+
+</FrameLayout>
