@@ -38,12 +38,12 @@ class Camera1 : BaseCamera(), ICamera {
             SensorManager.SENSOR_DELAY_NORMAL
         ) {
             override fun onOrientationChanged(orientation: Int) {
+//                DLog.i("Orientation changed to ${mDisplay?.rotation?:0}")
                 if (mRotation != (mDisplay?.rotation ?: 0)) {
                     // 旋转了180的情形，并不会走 surfaceChange 需要手动处理
                     if (kotlin.math.abs(mRotation - (mDisplay?.rotation ?: 0)) == 2) {
                         adjustCameraParameters(mViewWidth, mViewHeight)
                     }
-//                    DLog.i("Orientation changed to ${mDisplay.rotation}")
                 }
             }
         }
@@ -202,6 +202,11 @@ class Camera1 : BaseCamera(), ICamera {
         return false
     }
 
+    override fun getCamera(): Camera? {
+        return mCamera
+    }
+
+
     /**
      * 关闭资源释放
      */
@@ -210,6 +215,7 @@ class Camera1 : BaseCamera(), ICamera {
         mCamera?.release()
         mSurfaceTexture?.release()
         mSurfaceTexture = null
+        mCamera = null
     }
 
 }

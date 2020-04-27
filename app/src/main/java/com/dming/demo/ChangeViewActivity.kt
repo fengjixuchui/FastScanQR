@@ -6,7 +6,6 @@ import android.util.TypedValue
 import android.widget.Toast
 import com.dming.glScan.zxing.OnResultListener
 import com.google.zxing.Result
-import es.dmoral.toasty.Toasty
 import kotlinx.android.synthetic.main.activity_change_view.*
 
 class ChangeViewActivity : AppCompatActivity() {
@@ -18,13 +17,13 @@ class ChangeViewActivity : AppCompatActivity() {
             TypedValue.COMPLEX_UNIT_DIP, 1f,
             this.resources.displayMetrics
         )
-        smartScanView.setOnResultOnceListener(object : OnResultListener {
+        smartScanView.setOnResultListener(object : OnResultListener {
             override fun onResult(result: Result) {
-                Toasty.success(
+                Toasty.showText(
                     this@ChangeViewActivity,
                     "result: ${result.text}",
                     Toast.LENGTH_SHORT
-                ).show()
+                )
             }
         })
         qrBtn.setOnClickListener {
